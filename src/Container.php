@@ -17,6 +17,7 @@ use WPGraphQL\Model\Post;
 use WPGraphQL\Model\Term;
 use WPGraphQL\Model\User;
 use WPGraphQL\Model\Comment;
+use WPGraphQL\Model\MenuItem;
 
 class Container
 {
@@ -38,7 +39,21 @@ class Container
 
   private function registerField(Field $field)
   {
-    $roots = $this->container->type === 'theme_options' ? ['Crb_ThemeOptions'] : $this->getGraphQLRoot();
+    $roots = null;
+
+    switch($this->container->type) {
+      case 'theme_options':
+        $roots = ['Crb_ThemeOptions'];
+         break;
+
+      case 'nav_menu_item':
+        $roots = ['MenuItem'];
+        break;
+
+      default:
+        $roots = $this->getGraphQLRoot();
+    }
+
     $field_name = $field->getBaseName();
     $options = [
       'type' => $field->getType($field),
@@ -174,6 +189,12 @@ class Container
           return function () use ($field, $cb) {
             $value = carbon_get_theme_option($field->getBaseName());
             return $cb($value, $field, $this);
+          };
+
+        case 'nav_menu_item':
+          return function (MenuItem $menuItem, $args, AppContext $context, ResolveInfo $info) use ($field, $cb) {
+              $value = carbon_get_nav_menu_item_meta($menuItem->databaseId, $field->getBaseName());
+              return $cb($value, $field, $this, $args, $context, $info);
           };
 
         default:
