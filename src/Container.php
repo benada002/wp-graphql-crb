@@ -36,6 +36,13 @@ class Container
     return new Self($container);
   }
 
+  public function registerOrderBy()
+  {
+    $this->orderByFields = $this->getOrderByFields();
+    \add_action('graphql_register_types', [$this, 'registerOrderByTypes']);
+    \add_filter('graphql_post_object_connection_query_args', [$this, 'orderByContainer'], 10, 3);
+  }
+
   private function registerField(Field $field)
   {
     $roots = $this->container->type === 'theme_options' ? ['Crb_ThemeOptions'] : $this->getGraphQLRoot();
@@ -184,6 +191,78 @@ class Container
     };
   }
 
+  public function registerOrderByTypes()
+  {
+    $id = $this->getContainerId();
+    $inputConnections = $this->getInputConnectionNames();
+
+    if (count($inputConnections) < 1) {
+      return;
+    }
+
+    register_graphql_enum_type(
+      graphql_format_type_name("OrderByCrbEnum{$id}"), [
+        'description' => '',
+        'values'      => $this->getOrderByCrbEnumValues(),
+      ] 
+    );
+
+    register_graphql_input_type(
+      graphql_format_type_name("OrderByCrbInput{$id}"),
+      [
+        'description' => 'order',
+        'fields' => [
+          'field' => [
+            'type'        => graphql_format_type_name("OrderByCrbEnum{$id}"),
+            'description' => 'order',
+          ],
+          'order' => [
+            'type' => [
+              'non_null' => 'OrderEnum',
+            ],
+            'description' => __('Possible directions in which to order a list of items', 'wp-graphql'),
+          ],
+        ],
+      ]
+    );
+
+      foreach ($inputConnections as $con) {
+          foreach ($con as $name) {
+              register_graphql_field(
+                  $name,
+                  graphql_format_field_name("orderbyCrbContainer{$id}"),
+                  [
+                  'type' => [
+                      'list_of' => graphql_format_type_name("OrderByCrbInput{$id}")
+                  ],
+                  ]
+              );
+          }
+      }
+  }
+
+  public function orderByContainer( $query_args, $source, $input )
+  {
+      $id = $this->getContainerId();
+      $inputName = graphql_format_field_name("orderbyCrbContainer{$id}");
+
+    if (isset($input['where'][$inputName]) && is_array($input['where'][$inputName]) ) {
+      foreach ( $input['where'][$inputName] as $orderby ) {
+        if (isset($orderby['field'])) {
+          $query_args['orderby'] = "{$inputName}{$orderby['field']}";
+          $query_args['order'] = $orderby['order'];
+          $query_args['meta_query']["{$inputName}{$orderby['field']}"] = array(
+            'key' => $orderby['field'],
+            'type' => 'NUMERIC',
+            'compare' => 'EXISTS',
+          );
+        }
+      }
+    }
+
+    return $query_args;
+  }
+
   private function getGraphQLRoot()
   {
     $context = $this->container->type;
@@ -231,6 +310,64 @@ class Container
     return $roots;
   }
 
+  private function getInputConnectionNames()
+  {
+    $context = $this->container->type;
+    $type_callable = array(Decorator::class, "get_{$context}_container_settings");
+
+    if (!is_callable($type_callable)) {
+      return [];
+    }
+
+    $types = call_user_func($type_callable, $this->container);
+
+    if (!is_array($types)) {
+      $types = [$types];
+    }
+
+    $roots = array_reduce(
+      $types,
+      function ($input_types, $type) {
+        switch ($this->container->type) {
+          case 'post_meta':
+            $input_type = $this->getGraphQLPostTypeInputConnections($type);
+            break;
+        
+          case 'term_meta':
+            $input_type = $this->getGraphQLTermTypeInputConnections($type);
+            break;
+        
+          case 'user_meta':
+            $input_type = $this->getWhereConnectionName('RootQuery', 'User');
+            break;
+
+          case 'comment_meta':
+            $input_type = $this->getWhereConnectionName('RootQuery', 'Comment');
+            break;
+
+          default:
+            $input_type = [];
+        }
+
+        if (isset($input_type)) {
+          $input_types[] = is_array($input_type) ? $input_type : [$input_type];
+        }
+
+        return $input_types;
+      },
+      []
+    );
+
+      return $roots;
+  }
+
+  private function getWhereConnectionName( $from_type, $to_type )
+  {
+    $connection_name = ucfirst($from_type) . 'To' . ucfirst($to_type) . 'ConnectionWhereArgs';
+
+    return $connection_name;
+  }
+
   private function getGraphQLPostTypeRoot(String $type)
   {
     $post_type_object = \get_post_type_object($type);
@@ -249,6 +386,72 @@ class Container
     return $graphql_type;
   }
 
+  private function getGraphQLPostTypeInputConnections(String $type)
+  {
+      $connections = [];
+      $post_type = \get_post_type_object($type);
+
+      if (!$post_type->graphql_single_name) {
+          return $connections;
+      }
+
+      $connections[] = $this->getWhereConnectionName('RootQuery', $post_type->graphql_single_name);
+
+      $taxes = \get_object_taxonomies('snipcart-products', 'objects');
+
+      foreach ($taxes as $tax) {
+          if (!$tax->graphql_single_name) {
+              continue;
+          }
+          array_push(
+              $connections,
+              $this->getWhereConnectionName(
+                  $tax->graphql_single_name,
+                  $post_type->graphql_single_name
+              )
+          );
+      }
+      
+      return $connections;
+  }
+
+  private function getGraphQLTermTypeInputConnections(String $type)
+  {
+    $connections = [];
+    $tax = \get_taxonomy($type);
+
+    if (!$tax->graphql_single_name) {
+      return $connections;
+    }
+
+    $connections[] = $this->getWhereConnectionName('RootQuery', $tax->graphql_single_name);
+
+    foreach ($tax->object_type as $postType) {
+      if (!$postType->graphql_single_name) {
+        continue;
+      }
+
+      $connections[] = $this->getWhereConnectionName(
+        $postType->graphql_single_name,
+        $tax->graphql_single_name
+      );
+    }
+      
+    return $connections;
+  }
+
+  private function getOrderByCrbEnumValues($values = [])
+  {
+    foreach ($this->orderByFields as $field) {
+      $values[Container::getOrderByEnumKey($field)] = [
+        'value' => $field->getBaseName(),
+        'description' => 'Order by ' . $field->getBaseName(),
+      ];
+    }
+
+    return $values;
+  }
+
   private function getFields()
   {
     $graphql_fields = array_map(function ($field) {
@@ -258,5 +461,30 @@ class Container
     return array_filter($graphql_fields, function (Field $field) {
       return $field->isCompatible();
     });
+  }
+
+  private function getOrderByFields()
+  {
+    $graphql_fields = array_map(
+      function ($field) {
+        return Field::create($field);
+        }, $this->container->get_fields()
+      );
+
+      return array_filter(
+        $graphql_fields, function (Field $field) {
+          return $field->isCompatibleOrderBy();
+        }
+      );
+  }
+
+  private function getContainerId()
+  {
+    return str_replace('carbon_fields_container', '', $this->container->id);
+  }
+
+  private static function getOrderByEnumKey(Field $field)
+  {
+    return strtoupper($field->getBaseName());
   }
 }

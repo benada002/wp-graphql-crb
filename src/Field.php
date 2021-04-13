@@ -17,6 +17,8 @@ class Field
 
   private static $blacklisted_fields = ['html', 'separator'];
 
+  private static $allowed_orderby_fields = ['text'];
+
   public function __construct(CrbField $field, String $recursiveType)
   {
     $this->field = $field;
@@ -36,6 +38,11 @@ class Field
   public function isCompatible()
   {
     return !\in_array($this->getCrbType(), Field::$blacklisted_fields);
+  }
+
+  public function isCompatibleOrderBy()
+  {
+    return \in_array($this->getCrbType(), Field::$allowed_orderby_fields);
   }
 
   public function getType()
