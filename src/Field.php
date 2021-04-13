@@ -89,6 +89,22 @@ class Field
     return apply_filters('wp_graphql_crb_type', $type, $this->getCrbType());
   }
 
+  public function getOrderByType()
+  {
+    switch ($this->getCrbType()) {
+
+      case 'text':
+          $type = $this->getTextOrderByType();
+          break;
+
+      default:
+          $type = 'CHAR';
+      
+    };
+
+    return $type;
+  }
+
   public function getBaseName()
   {
     return $this->field->get_base_name();
@@ -120,6 +136,21 @@ class Field
 
       default:
         return 'String';
+    }
+  }
+
+  private function getTextOrderByType()
+  {
+    $attributes = $this->field->get_attributes();
+
+    $html_type = $attributes['type'] ?? 'text';
+
+    switch ($html_type) {
+      case 'number':
+          return 'NUMERIC';
+
+      default:
+          return 'String';
     }
   }
 

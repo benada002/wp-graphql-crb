@@ -20,6 +20,8 @@ use WPGraphQL\Model\Comment;
 
 class Container
 {
+  private $orderByFields = [];
+
   private static $is_first_time = true;
 
   private static $is_first_time_theme_options = true;
@@ -38,7 +40,7 @@ class Container
 
   public function registerOrderBy()
   {
-    $this->orderByFields = $this->getOrderByFields();
+    $this->registerOrderByFields();
     \add_action('graphql_register_types', [$this, 'registerOrderByTypes']);
     \add_filter('graphql_post_object_connection_query_args', [$this, 'orderByContainer'], 10, 3);
   }
@@ -243,21 +245,23 @@ class Container
 
   public function orderByContainer( $query_args, $source, $input )
   {
-      $id = $this->getContainerId();
-      $inputName = graphql_format_field_name("orderbyCrbContainer{$id}");
+    $id = $this->getContainerId();
+    $inputName = graphql_format_field_name("orderbyCrbContainer{$id}");
 
     if (isset($input['where'][$inputName]) && is_array($input['where'][$inputName]) ) {
-      foreach ( $input['where'][$inputName] as $orderby ) {
-        if (isset($orderby['field'])) {
-          $query_args['orderby'] = "{$inputName}{$orderby['field']}";
-          $query_args['order'] = $orderby['order'];
-          $query_args['meta_query']["{$inputName}{$orderby['field']}"] = array(
-            'key' => $orderby['field'],
-            'type' => 'NUMERIC',
-            'compare' => 'EXISTS',
-          );
+        foreach ( $input['where'][$inputName] as $orderby ) {
+            if (isset($orderby['field'])) {
+                $field = $this->getOrderByFieldByName($orderby['field']);
+
+                $query_args['orderby'] = "{$inputName}{$orderby['field']}";
+                $query_args['order'] = $orderby['order'];
+                $query_args['meta_query']["{$inputName}{$orderby['field']}"] = array(
+                'key' => $orderby['field'],
+                'type' => $field->getOrderByType(),
+                'compare' => 'EXISTS',
+                );
+            }
         }
-      }
     }
 
     return $query_args;
@@ -463,19 +467,22 @@ class Container
     });
   }
 
-  private function getOrderByFields()
+  private function registerOrderByFields()
   {
-    $graphql_fields = array_map(
-      function ($field) {
-        return Field::create($field);
-        }, $this->container->get_fields()
-      );
+    foreach ($this->container->get_fields() as $field) {
+      $createdField = Field::create($field);
 
-      return array_filter(
-        $graphql_fields, function (Field $field) {
-          return $field->isCompatibleOrderBy();
-        }
-      );
+      if (!$createdField ->isCompatibleOrderBy()) {
+        continue;
+      }
+
+      $this->orderByFields[$createdField->getBaseName()] = $createdField;
+    }
+  }
+
+  private function getOrderByFieldByName($name)
+  {
+      return $this->orderByFields[$name];
   }
 
   private function getContainerId()
