@@ -39,20 +39,7 @@ class Container
 
   private function registerField(Field $field)
   {
-    $roots = null;
-
-    switch($this->container->type) {
-      case 'theme_options':
-        $roots = ['Crb_ThemeOptions'];
-         break;
-
-      case 'nav_menu_item':
-        $roots = ['MenuItem'];
-        break;
-
-      default:
-        $roots = $this->getGraphQLRoot();
-    }
+    $roots = $this->getGraphQLRoot();
 
     $field_name = $field->getBaseName();
     $options = [
@@ -208,6 +195,21 @@ class Container
   private function getGraphQLRoot()
   {
     $context = $this->container->type;
+
+    /**
+     * Check for containers which are not implemented as callable from Carbonfields,
+     * but should be added to GraphQL anyways.
+     */
+    switch($context ) {
+      case 'theme_options':
+        return ['Crb_ThemeOptions'];
+         break;
+
+      case 'nav_menu_item':
+        return ['MenuItem'];
+        break;
+    }
+
     $type_callable = array(Decorator::class, "get_{$context}_container_settings");
 
     if (!is_callable($type_callable)) {
