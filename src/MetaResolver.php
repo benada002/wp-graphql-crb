@@ -5,6 +5,7 @@ namespace WpGraphQLCrb;
 use GraphQL\Type\Definition\ResolveInfo;
 use WPGraphQL\AppContext;
 use WPGraphQL\Data\DataSource;
+use GraphQLRelay\Relay;
 
 class MetaResolver
 {
@@ -38,6 +39,9 @@ class MetaResolver
           $info
         );
       }
+
+      $complex_item['id'] = Relay::toGlobalId($container->getId(), $field->getBaseName());
+
       return $complex_item;
     }, $value);
   }

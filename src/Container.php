@@ -249,10 +249,15 @@ class Container
     return $graphql_type;
   }
 
+  public function getId()
+  {
+    return $this->container->get_id();
+  }
+
   private function getFields()
   {
     $graphql_fields = array_map(function ($field) {
-      return Field::create($field);
+      return Field::create($field, $this->getId());
     }, $this->container->get_fields());
 
     return array_filter($graphql_fields, function (Field $field) {

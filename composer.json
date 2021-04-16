@@ -16,6 +16,7 @@
     },
     "require": {
         "htmlburger/carbon-fields": "^3.2",
-        "wp-graphql/wp-graphql": "^1.1"
+        "wp-graphql/wp-graphql": "^1.1",
+        "ivome/graphql-relay-php": "^0.5.0"
     }
 }

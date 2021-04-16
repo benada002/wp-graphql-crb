@@ -229,6 +229,13 @@ class Field
       return $fields;
     }, []);
 
+    $fields['id'] = [
+      'type' => [
+        'non_null' => 'ID'
+      ],
+      'description' => 'id'
+    ];
+
     register_graphql_object_type($type, [
       'description' => $this->getDescription(),
       'fields' => $fields,
