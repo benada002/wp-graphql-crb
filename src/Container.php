@@ -149,25 +149,25 @@ class Container
         case 'post_meta':
           return function (Post $post, $args, AppContext $context, ResolveInfo $info) use ($field, $cb) {
             $value = carbon_get_post_meta($post->ID, $field->getBaseName());
-            return $cb($value, $field, $this, $args, $context, $info);
+            return $cb($value, $field, $this, $args, $context, $info, $post->ID);
           };
 
         case 'term_meta':
           return function (Term $term, $args, AppContext $context, ResolveInfo $info) use ($field, $cb) {
             $value = carbon_get_term_meta($term->term_id, $field->getBaseName());
-            return $cb($value, $field, $this, $args, $context, $info);
+            return $cb($value, $field, $this, $args, $context, $info, $term->term_id);
           };
 
         case 'user_meta':
           return function (User $user, $args, AppContext $context, ResolveInfo $info) use ($field, $cb) {
             $value = carbon_get_user_meta($user->userId, $field->getBaseName());
-            return $cb($value, $field, $this, $args, $context, $info);
+            return $cb($value, $field, $this, $args, $context, $info, $user->userId);
           };
 
         case 'comment_meta':
           return function (Comment $comment, $args, AppContext $context, ResolveInfo $info) use ($field, $cb) {
             $value = carbon_get_comment_meta($comment->databaseId, $field->getBaseName());
-            return $cb($value, $field, $this, $args, $context, $info);
+            return $cb($value, $field, $this, $args, $context, $info, $comment->databaseId);
           };
 
         case 'theme_options':
@@ -257,7 +257,7 @@ class Container
   private function getFields()
   {
     $graphql_fields = array_map(function ($field) {
-      return Field::create($field, $this->getId());
+      return Field::create($field);
     }, $this->container->get_fields());
 
     return array_filter($graphql_fields, function (Field $field) {

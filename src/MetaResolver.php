@@ -19,10 +19,12 @@ class MetaResolver
     return floatval($value);
   }
 
-  public static function getComplex($value, Field $field, Container $container, $args, AppContext $context, ResolveInfo $info)
+  public static function getComplex($value, Field $field, Container $container, $args, AppContext $context, ResolveInfo $info, $id = null)
   {
+    $parent = $field;
     $fields = $field->getFields();
-    return array_map(function ($val) use ($fields, $container, $args, $context, $info) {
+
+    return array_map(function ($i, $val) use ($fields, $container, $args, $context, $info, $id, $parent) {
       $complex_item = [];
       foreach ($fields as $f) {
         $field = Field::create($f);
@@ -36,14 +38,14 @@ class MetaResolver
           $container,
           $args,
           $context,
-          $info
+          $info,
+          $id
         );
       }
-
-      $complex_item['id'] = Relay::toGlobalId($container->getId(), $field->getBaseName());
+      $complex_item['id'] = Relay::toGlobalId($container->getId() . $parent->getBaseName() . $i, ($id ?? ''));
 
       return $complex_item;
-    }, $value);
+    }, array_keys($value), $value);
   }
 
   public static function getMediaGallery($gallery_ids, Field $field, Container $container, $args, AppContext $context, ResolveInfo $info)
